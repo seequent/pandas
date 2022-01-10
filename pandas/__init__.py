@@ -151,6 +151,9 @@ from pandas.io.api import (
     read_csv,
     read_fwf,
     read_table,
+    # pickle
+    read_pickle,
+    to_pickle,
     # pytables
     HDFStore,
     read_hdf,
