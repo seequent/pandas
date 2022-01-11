@@ -810,7 +810,7 @@ class TestHDFStore:
         all_tests = [(lib, lvl) for lib in all_complibs for lvl in all_levels]
 
         for (lib, lvl) in all_tests:
-            with ensure_clean_path(setup_path) as tmpfile:
+            with ensure_clean_path(f'{lib}.{lvl}.{setup_path}') as tmpfile:
                 gname = "foo"
 
                 # Write and read file to see if data is consistent
