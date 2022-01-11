@@ -2000,7 +2000,10 @@ def test_suppress_error_output(all_parsers, capsys):
     # see gh-15925
     parser = all_parsers
     data = "a\n1\n1,2,3\n4\n5,6,7"
-    expected = DataFrame({"a": [1, 4]})
+    if parser.engine == 'c':
+        expected = DataFrame({"a": [1, 1, 4, 5]})
+    else:
+        expected = DataFrame({"a": [1, 4]})
 
     result = parser.read_csv(
         StringIO(data), error_bad_lines=False, warn_bad_lines=False
