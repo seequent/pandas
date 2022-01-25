@@ -143,9 +143,9 @@ class TestTextReader:
         )
         result = reader.read()
         expected = {
-            0: np.array(["a", "d", "g", "l"], dtype=object),
-            1: np.array(["b", "e", "h", "m"], dtype=object),
-            2: np.array(["c", "f", "i", "n"], dtype=object),
+            0: np.array(["a", "d", "g", "j", "l", "o"], dtype=object),
+            1: np.array(["b", "e", "h", "k", "m", "p"], dtype=object),
+            2: np.array(["c", "f", "i", "l", "n", "q"], dtype=object),
         }
         assert_array_dicts_equal(result, expected)
 

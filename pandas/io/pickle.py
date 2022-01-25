@@ -4,7 +4,6 @@ from typing import Any, Optional
 import warnings
 
 from pandas._typing import FilePathOrBuffer
-from pandas.compat import pickle_compat as pc
 
 from pandas.io.common import get_filepath_or_buffer, get_handle
 
@@ -170,24 +169,12 @@ def read_pickle(
     f, fh = get_handle(fp_or_buf, "rb", compression=compression, is_text=False)
 
     # 1) try standard library Pickle
-    # 2) try pickle_compat (older pandas version) to handle subclass changes
-    # 3) try pickle_compat with latin-1 encoding upon a UnicodeDecodeError
 
     try:
-        excs_to_catch = (AttributeError, ImportError, ModuleNotFoundError)
-        try:
-            with warnings.catch_warnings(record=True):
-                # We want to silence any warnings about, e.g. moved modules.
-                warnings.simplefilter("ignore", Warning)
-                return pickle.load(f)
-        except excs_to_catch:
-            # e.g.
-            #  "No module named 'pandas.core.sparse.series'"
-            #  "Can't get attribute '__nat_unpickle' on <module 'pandas._libs.tslib"
-            return pc.load(f, encoding=None)
-    except UnicodeDecodeError:
-        # e.g. can occur for files written in py27; see GH#28645 and GH#31988
-        return pc.load(f, encoding="latin-1")
+        with warnings.catch_warnings(record=True):
+            # We want to silence any warnings about, e.g. moved modules.
+            warnings.simplefilter("ignore", Warning)
+            return pickle.load(f)
     finally:
         f.close()
         for _f in fh:
