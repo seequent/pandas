@@ -107,7 +107,8 @@ def _valid_locales(locales: list[str] | str, normalize: bool) -> list[str]:
 
 
 def _default_locale_getter() -> bytes:
-    return subprocess.check_output(["locale -a"], shell=True)
+    return None
+    # return subprocess.check_output(["locale -a"], shell=True)
 
 
 def get_locales(
@@ -145,7 +146,7 @@ def get_locales(
     """
     try:
         raw_locales = locale_getter()
-    except subprocess.CalledProcessError:
+    except Exception:
         # Raised on (some? all?) Windows platforms because Note: "locale -a"
         #  is not defined
         return None
