@@ -437,18 +437,6 @@ static int end_line(parser_t *self) {
         // increment file line count
         self->file_lines++;
 
-        // truncate fields if neither error nor warn
-        if (self->on_bad_lines == SKIP) {
-            // clean up this line
-            self->line_fields[self->lines] = ex_fields;
-            // set up the next line
-            self->lines++;
-            self->line_start[self->lines] = (self->line_start[self->lines - 1] +
-                                             fields);
-            self->line_fields[self->lines] = 0;
-            return 0;
-        }
-
         // skip the tokens from this bad line
         self->line_start[self->lines] += fields;
 
@@ -461,6 +449,18 @@ static int end_line(parser_t *self) {
         (fields > ex_fields) && !(self->usecols)) {
         // increment file line count
         self->file_lines++;
+
+        // truncate fields if neither error nor warn
+        if (self->on_bad_lines == SKIP) {
+            // clean up this line
+            self->line_fields[self->lines] = ex_fields;
+            // set up the next line
+            self->lines++;
+            self->line_start[self->lines] = (self->line_start[self->lines - 1] +
+                                             fields);
+            self->line_fields[self->lines] = 0;
+            return 0;
+        }
 
         // skip the tokens from this bad line
         self->line_start[self->lines] += fields;
