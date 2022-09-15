@@ -43,7 +43,6 @@ from pandas._typing import (
     Shape,
 )
 from pandas.compat._optional import import_optional_dependency
-from pandas.compat.pickle_compat import patch_pickle
 from pandas.errors import PerformanceWarning
 from pandas.util._decorators import cache_readonly
 from pandas.util._exceptions import find_stack_level
@@ -791,13 +790,10 @@ class HDFStore:
         object
             Same type as object stored in file.
         """
-        with patch_pickle():
-            # GH#31167 Without this patch, pickle doesn't know how to unpickle
-            #  old DateOffset objects now that they are cdef classes.
-            group = self.get_node(key)
-            if group is None:
-                raise KeyError(f"No object named {key} in the file")
-            return self._read_group(group)
+        group = self.get_node(key)
+        if group is None:
+            raise KeyError(f"No object named {key} in the file")
+        return self._read_group(group)
 
     def select(
         self,

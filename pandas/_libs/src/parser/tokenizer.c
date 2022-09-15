@@ -450,6 +450,18 @@ static int end_line(parser_t *self) {
         // increment file line count
         self->file_lines++;
 
+        // truncate fields if neither error nor warn
+        if (self->on_bad_lines == SKIP) {
+            // clean up this line
+            self->line_fields[self->lines] = ex_fields;
+            // set up the next line
+            self->lines++;
+            self->line_start[self->lines] = (self->line_start[self->lines - 1] +
+                                             fields);
+            self->line_fields[self->lines] = 0;
+            return 0;
+        }
+
         // skip the tokens from this bad line
         self->line_start[self->lines] += fields;
 
@@ -1143,6 +1155,9 @@ static int parser_handle_eof(parser_t *self) {
 
         case ESCAPE_IN_QUOTED_FIELD:
         case IN_QUOTED_FIELD:
+            if (self->on_bad_lines != ERROR) {
+                return 0;
+            }
             self->error_msg = (char *)malloc(bufsize);
             snprintf(self->error_msg, bufsize,
                     "EOF inside string starting at row %" PRIu64,
@@ -1150,6 +1165,9 @@ static int parser_handle_eof(parser_t *self) {
             return -1;
 
         case ESCAPED_CHAR:
+            if (self->on_bad_lines != ERROR) {
+                return 0;
+            }
             self->error_msg = (char *)malloc(bufsize);
             snprintf(self->error_msg, bufsize,
                      "EOF following escape character");
@@ -1360,6 +1378,9 @@ int _tokenize_helper(parser_t *self, size_t nrows, int all,
             if (status == REACHED_EOF) {
                 // close out last line
                 status = parser_handle_eof(self);
+                if (self->on_bad_lines != ERROR) {
+                    status = 0;
+                }
                 self->state = FINISHED;
                 break;
             } else if (status != 0) {
