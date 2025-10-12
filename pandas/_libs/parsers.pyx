@@ -772,9 +772,7 @@ cdef class TextReader:
             else:
                 field_count = self.parser.line_fields[data_line]
 
-            # Enforce this unless usecols
-            if not self.has_usecols:
-                self.parser.expected_fields = max(field_count, len(self.names))
+            self.parser.expected_fields = max(field_count, len(self.names))
 
         else:
             # No header passed nor to be found in the file
