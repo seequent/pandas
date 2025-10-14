@@ -34,6 +34,7 @@ from pandas.util._exceptions import find_stack_level
 
 from pandas.core.dtypes.astype import astype_array
 from pandas.core.dtypes.common import (
+    dtype_coerce,
     ensure_object,
     is_bool_dtype,
     is_dict_like,
@@ -533,8 +534,10 @@ class ParserBase:
         result = {}
         for c, values in dct.items():
             conv_f = None if converters is None else converters.get(c, None)
+            coerce_float = False
             if isinstance(dtypes, dict):
                 cast_type = dtypes.get(c, None)
+                cast_type, coerce_float = dtype_coerce(cast_type)
             else:
                 # single dtype or None
                 cast_type = dtypes
@@ -577,6 +580,7 @@ class ParserBase:
                     set(col_na_values) | col_na_fvalues,
                     cast_type is None,
                     try_num_bool=False,
+                    coerce_float=coerce_float,
                 )
             else:
                 is_ea = is_extension_array_dtype(cast_type)
@@ -678,7 +682,7 @@ class ParserBase:
 
     @final
     def _infer_types(
-        self, values, na_values, no_dtype_specified, try_num_bool: bool = True
+        self, values, na_values, no_dtype_specified, try_num_bool: bool = True, coerce_float: bool = False
     ) -> tuple[ArrayLike, int]:
         """
         Infer types of values, possibly casting
@@ -690,6 +694,8 @@ class ParserBase:
         no_dtype_specified: Specifies if we want to cast explicitly
         try_num_bool : bool, default try
            try to cast values to numeric (first preference) or boolean
+        coerce_float : bool, default don't coerce
+            coerce values that cannot be converted to NaN
 
         Returns
         -------
@@ -721,6 +727,7 @@ class ParserBase:
                     values,
                     na_values,
                     False,
+                    coerce_float,
                     convert_to_masked_nullable=non_default_dtype_backend,  # type: ignore[arg-type]
                 )
             except (ValueError, TypeError):
@@ -1098,7 +1105,7 @@ class ParserBase:
             dtype = cast(dict, dtype)
             dtype_dict = defaultdict(
                 lambda: None,
-                {columns[k] if is_integer(k) else k: v for k, v in dtype.items()},
+                {columns[k] if is_integer(k) else k: v[0] if isinstance(v, tuple) else v for k, v in dtype.items()},
             )
 
         # Even though we have no data, the "index" of the empty DataFrame
