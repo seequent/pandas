@@ -1958,7 +1958,7 @@ class TextFileReader(abc.Iterator):
                 for k, v in col_dict.items():
                     d = (
                         dtype[k]
-                        if pandas_dtype(dtype[k]) in (np.str_, np.object_)
+                        if pandas_dtype(dtype[k][0] if isinstance(dtype[k], tuple) else dtype[k]) in (np.str_, np.object_)
                         else None
                     )
                     new_col_dict[k] = Series(v, index=index, dtype=d, copy=False)

@@ -1708,9 +1708,34 @@ def is_all_strings(value: ArrayLike) -> bool:
     return dtype == "string"
 
 
+def dtype_coerce(dtype):
+    """
+    Determine whether this dtype should be coerced.
+    Parameters
+    ----------
+    dtype : object or tuple to be checked
+    Returns
+    -------
+    dtype : np.dtype or a pandas dtype
+    coerce : bool
+        Should the dtype be coerced
+    Raises
+    ------
+    ValueError if coercion for the dtype is not supported
+    """
+    if isinstance(dtype, tuple):
+        dtype, coerce = dtype
+        if not is_float_dtype(dtype) or coerce != "coerce":
+            raise ValueError('Only "coerce" is supported when dtype is a float type')
+        return dtype, True
+    else:
+        return dtype, False
+
+
 __all__ = [
     "classes",
     "DT64NS_DTYPE",
+    "dtype_coerce",
     "ensure_float64",
     "ensure_python_int",
     "ensure_str",

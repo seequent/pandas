@@ -100,6 +100,7 @@ from pandas.errors import (
     ParserWarning,
 )
 
+from pandas.core.dtypes.common import dtype_coerce
 from pandas.core.dtypes.dtypes import (
     CategoricalDtype,
     ExtensionDtype,
@@ -761,8 +762,7 @@ cdef class TextReader:
         elif self.names is not None:
             # Names passed
             if self.parser.lines < 1:
-                if not self.has_usecols:
-                    self.parser.expected_fields = len(self.names)
+                self.parser.expected_fields = len(self.names)
                 self._tokenize_rows(1)
 
             header = [self.names]
@@ -772,9 +772,7 @@ cdef class TextReader:
             else:
                 field_count = self.parser.line_fields[data_line]
 
-            # Enforce this unless usecols
-            if not self.has_usecols:
-                self.parser.expected_fields = max(field_count, len(self.names))
+            self.parser.expected_fields = max(field_count, len(self.names))
 
         else:
             # No header passed nor to be found in the file
@@ -1021,6 +1019,7 @@ cdef class TextReader:
             conv = self._get_converter(i, name)
 
             col_dtype = None
+            col_coerce_float = False
             if self.dtype is not None:
                 if isinstance(self.dtype, dict):
                     if name in self.dtype:
@@ -1029,6 +1028,7 @@ cdef class TextReader:
                         col_dtype = self.dtype[i]
                     elif is_default_dict_dtype:
                         col_dtype = self.dtype[name]
+                    col_dtype, col_coerce_float = dtype_coerce(col_dtype)
                 else:
                     if self.dtype.names:
                         # structured array
@@ -1065,7 +1065,7 @@ cdef class TextReader:
             try:
                 col_res, na_count = self._convert_tokens(
                     i, start, end, name, na_filter, na_hashset,
-                    na_flist, col_dtype)
+                    na_flist, col_dtype, col_coerce_float)
             finally:
                 # gh-21353
                 #
@@ -1099,12 +1099,12 @@ cdef class TextReader:
     cdef _convert_tokens(self, Py_ssize_t i, int64_t start,
                          int64_t end, object name, bint na_filter,
                          kh_str_starts_t *na_hashset,
-                         object na_flist, object col_dtype):
+                         object na_flist, object col_dtype, bint col_coerce_float):
 
         if col_dtype is not None:
             col_res, na_count = self._convert_with_dtype(
                 col_dtype, i, start, end, na_filter,
-                1, na_hashset, na_flist)
+                1, na_hashset, na_flist, col_coerce_float)
 
             # Fallback on the parse (e.g. we requested int dtype,
             # but its actually a float).
@@ -1118,7 +1118,7 @@ cdef class TextReader:
             for dt in self.dtype_cast_order:
                 try:
                     col_res, na_count = self._convert_with_dtype(
-                        dt, i, start, end, na_filter, 0, na_hashset, na_flist)
+                        dt, i, start, end, na_filter, 0, na_hashset, na_flist, col_coerce_float)
                 except ValueError:
                     # This error is raised from trying to convert to uint64,
                     # and we discover that we cannot convert to any numerical
@@ -1126,11 +1126,11 @@ cdef class TextReader:
                     # column AS IS with object dtype.
                     col_res, na_count = self._convert_with_dtype(
                         np.dtype("object"), i, start, end, 0,
-                        0, na_hashset, na_flist)
+                        0, na_hashset, na_flist, 0)
                 except OverflowError:
                     col_res, na_count = self._convert_with_dtype(
                         np.dtype("object"), i, start, end, na_filter,
-                        0, na_hashset, na_flist)
+                        0, na_hashset, na_flist, 0)
 
                 if col_res is not None:
                     break
@@ -1178,7 +1178,8 @@ cdef class TextReader:
                              bint na_filter,
                              bint user_dtype,
                              kh_str_starts_t *na_hashset,
-                             object na_flist):
+                             object na_flist,
+                             bint col_coerce_float):
         if isinstance(dtype, CategoricalDtype):
             # TODO: I suspect that _categorical_convert could be
             # optimized when dtype is an instance of CategoricalDtype
@@ -1236,7 +1237,7 @@ cdef class TextReader:
 
         elif dtype.kind == "f":
             result, na_count = _try_double(self.parser, i, start, end,
-                                           na_filter, na_hashset, na_flist)
+                                           na_filter, na_hashset, na_flist, col_coerce_float)
 
             if result is not None and dtype != "float64":
                 result = result.astype(dtype)
@@ -1646,7 +1647,8 @@ cdef:
 # -> tuple[ndarray[float64_t], int]  | tuple[None, None]
 cdef _try_double(parser_t *parser, int64_t col,
                  int64_t line_start, int64_t line_end,
-                 bint na_filter, kh_str_starts_t *na_hashset, object na_flist):
+                 bint na_filter, kh_str_starts_t *na_hashset, object na_flist,
+                 bint coerce_float):
     cdef:
         int error, na_count = 0
         Py_ssize_t lines
@@ -1664,7 +1666,7 @@ cdef _try_double(parser_t *parser, int64_t col,
         error = _try_double_nogil(parser, parser.double_converter,
                                   col, line_start, line_end,
                                   na_filter, na_hashset, use_na_flist,
-                                  na_fset, NA, data, &na_count)
+                                  na_fset, NA, data, &na_count, coerce_float)
 
     kh_destroy_float64(na_fset)
     if error != 0:
@@ -1681,7 +1683,7 @@ cdef int _try_double_nogil(parser_t *parser,
                            bint use_na_flist,
                            const kh_float64_t *na_flist,
                            float64_t NA, float64_t *data,
-                           int *na_count) nogil:
+                           int *na_count, bint coerce_float) nogil:
     cdef:
         int error = 0,
         Py_ssize_t i, lines = line_end - line_start
@@ -1715,6 +1717,9 @@ cdef int _try_double_nogil(parser_t *parser,
                     elif (strcasecmp(word, cneginf) == 0 or
                             strcasecmp(word, cneginfty) == 0):
                         data[0] = NEGINF
+                    elif coerce_float:
+                        na_count[0] += 1
+                        data[0] = NA
                     else:
                         return 1
                 if use_na_flist:
@@ -1739,6 +1744,9 @@ cdef int _try_double_nogil(parser_t *parser,
                 elif (strcasecmp(word, cneginf) == 0 or
                         strcasecmp(word, cneginfty) == 0):
                     data[0] = NEGINF
+                elif coerce_float:
+                    na_count[0] += 1
+                    data[0] = NA
                 else:
                     return 1
             data += 1
